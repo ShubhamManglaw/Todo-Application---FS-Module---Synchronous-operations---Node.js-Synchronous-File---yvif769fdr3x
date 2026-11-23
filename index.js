@@ -1,34 +1,42 @@
 const fs = require('fs');
-const DB_PATH = './db.txt';
+const path = require('path');
+
+const DB_PATH = path.join(__dirname, 'db.txt');
+
+// Ensure db.txt exists
+if (!fs.existsSync(DB_PATH)) {
+  fs.writeFileSync(DB_PATH, '');
+}
 
 // Convert the text file format to JSON array
 const dbTextToJson = (text) => {
-  if (!text.trim()) return [];
-  const formattedString = `[${text.trim().split("\n}\n{").join("},{")}]`;
-  return JSON.parse(formattedString);
+  if (!text || !text.trim()) return [];
+  const clean = text.trim();
+  const formattedString = '[' + clean.split(/\}\s*\r?\n\s*\{/).join('},{') + ']';
+  try {
+    return JSON.parse(formattedString);
+  } catch (e) {
+    return [];
+  }
 };
 
 // Convert JSON array to the stored text format
 const JsonToDbText = (jsonArray) => {
-  let text = "";
-  jsonArray.forEach((todo) => {
-    text += JSON.stringify(todo, null, 2) + "\n";
-  });
-  return text;
+  if (!jsonArray || jsonArray.length === 0) return '';
+  return jsonArray.map(todo => JSON.stringify(todo, null, 2)).join('\n') + '\n';
 };
 
 const getTodosSync = () => {
-  const data = fs.readFileSync(DB_PATH, 'utf8');
-  return data;
+  if (!fs.existsSync(DB_PATH)) return '';
+  return fs.readFileSync(DB_PATH, 'utf8');
 };
 
 const getTodoSync = (id) => {
-  const text = fs.readFileSync(DB_PATH, 'utf8');
+  const text = getTodosSync();
   const arr = dbTextToJson(text);
-  const todo = arr.find(item => item.id === id);
+  const todo = arr.find(item => String(item.id) === String(id));
   return todo ? JSON.stringify(todo) : null;
 };
-
 
 const createTodoSync = (todoTitle) => {
   const obj = {
@@ -39,43 +47,34 @@ const createTodoSync = (todoTitle) => {
     updatedAt: new Date().toISOString(),
   };
 
-  // Read existing todos
-  const data = fs.readFileSync(DB_PATH, 'utf8');
-  const todos = dbTextToJson(data);
-
-  // Add new todo
+  const text = getTodosSync();
+  const todos = dbTextToJson(text);
   todos.push(obj);
 
-  // Write back
-  const text = JsonToDbText(todos);
-  fs.writeFileSync(DB_PATH, text);
+  fs.writeFileSync(DB_PATH, JsonToDbText(todos));
 };
 
 const updateTodoSync = (id, updates) => {
-  const data = fs.readFileSync(DB_PATH, 'utf8');
-  const todos = dbTextToJson(data);
+  const text = getTodosSync();
+  const todos = dbTextToJson(text);
 
   todos.forEach(item => {
-    if (item.id == id) {
-      Object.entries(updates).forEach(([key, value]) => {
-        item[key] = value;
-      });
+    if (String(item.id) === String(id)) {
+      Object.assign(item, updates);
       item.updatedAt = new Date().toISOString();
     }
   });
 
-  const text = JsonToDbText(todos);
-  fs.writeFileSync(DB_PATH, text);
+  fs.writeFileSync(DB_PATH, JsonToDbText(todos));
 };
 
 const deleteTodoSync = (id) => {
-  const data = fs.readFileSync(DB_PATH, 'utf8');
-  const todos = dbTextToJson(data);
+  const text = getTodosSync();
+  const todos = dbTextToJson(text);
 
-  const filtered = todos.filter(item => item.id !== id);
+  const filtered = todos.filter(item => String(item.id) !== String(id));
 
-  const text = JsonToDbText(filtered);
-  fs.writeFileSync(DB_PATH, text);
+  fs.writeFileSync(DB_PATH, JsonToDbText(filtered));
 };
 
 module.exports = {
